@@ -90,7 +90,7 @@
             return str;
         };
 
-        // [FIX] 회계연도 기준 연차 자동 산정 로직 적용 (1월 1일 ~ 12월 31일)
+        // 회계연도 기준 연차 자동 산정 로직 적용 (1월 1일 ~ 12월 31일)
         const calculateLeaveForYear = (joinDateStr, targetYear) => {
             if (!joinDateStr || joinDateStr.length < 10) return { total: 0, period: '-', startDate: '', endDate: '', notJoined: true };
             
@@ -113,16 +113,16 @@
             let totalLeave = 0;
 
             if (yearsWorked === 0) {
-                // 1년차 (입사 당해): 1개월 개근 시 1일 부여 (최대 11일). 단순화를 위해 잔여 월수 산정
+                // 1년차 (입사 당해)
                 totalLeave = 12 - jMonth + (jDay === 1 ? 1 : 0);
                 if (totalLeave > 11) totalLeave = 11;
                 if (totalLeave < 0) totalLeave = 0;
             } else if (yearsWorked === 1) {
-                // 2년차 (첫 1월 1일): 전년도 근속일수 비례 산정 (15일 * 전년도재직일수 / 365)
+                // 2년차 (첫 1월 1일)
                 const daysInJoinYear = Math.floor((new Date(jYear, 11, 31) - joinDate) / (1000 * 60 * 60 * 24)) + 1;
                 totalLeave = Math.round((15 * daysInJoinYear / 365) * 10) / 10;
             } else {
-                // 3년차 이상: 15일 + 2년마다 1일 가산 (최대 25일)
+                // 3년차 이상
                 totalLeave = 15 + Math.floor((yearsWorked - 2) / 2);
                 if (totalLeave > 25) totalLeave = 25;
             }
@@ -150,7 +150,6 @@
             
             // 회계연도는 무조건 12월 31일 만료이므로, 7월(6개월 전), 11월(2개월 전)에 고정 촉진
             if (leaveInfo.yearsWorked < 1) {
-                // 1년 미만자는 입사일로부터 1년 도래 3개월 전 (간이 회계 기준 적용 시 변동 가능하나 일단 10월로 고정)
                 if (currentMonth === 10) return { type: '1년미만 1차', msg: '만료 3개월 전 (10월)', color: 'bg-purple-100 text-purple-700' };
             } else {
                 if (currentMonth === 7) return { type: '1차 촉진', msg: '만료 6개월 전 (7월)', color: 'bg-cyan-100 text-cyan-700' };
@@ -206,8 +205,8 @@
             
             const handleLogin = async (e) => {
                 e.preventDefault(); setError(''); setLoading(true);
-                // [수정됨] 로그인 이메일 생성 로직 반영
-                let email = id === 'admin' ? 'admin@jangaein.com' : (id.includes('@') ? id : `${id}@jangaein.com`);
+                // [수정됨] 로그인 이메일 rcsd로 변경
+                let email = id === 'rcsd' ? 'rcsd@jangaein.com' : (id.includes('@') ? id : `${id}@jangaein.com`);
                 try {
                     await auth.signInWithEmailAndPassword(email, pw);
                     const userDoc = await db.collection('users').doc(email).get();
@@ -215,23 +214,47 @@
                         const userData = userDoc.data();
                         onLogin(userData.role === 'admin' ? { ...userData, role: 'admin', name: '관리자', email } : { ...userData, email });
                     } else onLogin({ role: 'staff', name: id, email });
-                } catch (err) { setError('로그인 실패: 정보를 확인해주세요.'); } finally { setLoading(false); }
+                } catch (err) { setError('로그인 실패: 아이디 또는 비밀번호를 확인해주세요.'); } finally { setLoading(false); }
             };
 
             return (
                 <div className="flex h-screen items-center justify-center bg-slate-100">
                     <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
                         <div className="text-center mb-8">
-                            {/* [수정됨] 로고 이미지 적용 */}
                             <img src="./logo.jpg" alt="장애인사회연구소 로고" className="mx-auto h-16 object-contain mb-4" />
                             <p className="text-slate-500 font-bold">연차 관리 시스템 (회계연도 기준)</p>
                         </div>
                         <form onSubmit={handleLogin} className="space-y-6">
-                            <div><label className="block text-sm font-bold text-slate-700 mb-2">아이디</label><input type="text" value={id} onChange={(e)=>setId(e.target.value)} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none" required placeholder="admin" /></div>
+                            <div><label className="block text-sm font-bold text-slate-700 mb-2">아이디</label><input type="text" value={id} onChange={(e)=>setId(e.target.value)} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none" required placeholder="rcsd" /></div>
                             <div><label className="block text-sm font-bold text-slate-700 mb-2">비밀번호</label><input type="password" value={pw} onChange={(e)=>setPw(e.target.value)} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none" required /></div>
-                            {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+                            {error && <p className="text-red-500 text-xs text-center font-bold animate-pulse">{error}</p>}
                             <button type="submit" disabled={loading} className="w-full bg-cyan-600 text-white font-bold py-4 rounded-xl hover:bg-cyan-700 transition disabled:opacity-50">{loading ? '로그인...' : '로그인 하기'}</button>
                         </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // [추가됨] 시스템 업데이트 안내 팝업 컴포넌트
+        const UpdateNoticeModal = ({ onClose }) => {
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] animate-fade-in backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md relative">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icons.X /></button>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2 bg-cyan-100 text-cyan-600 rounded-lg"><Icons.Megaphone /></div>
+                            <h3 className="text-xl font-black text-slate-800">시스템 업데이트 안내</h3>
+                        </div>
+                        <div className="bg-slate-50 p-5 rounded-xl mb-6 space-y-4 text-sm text-slate-700 border border-slate-100">
+                            <p className="font-black text-cyan-700 pb-2 border-b border-cyan-100">Ver 9.3 주요 반영 내역</p>
+                            <ul className="list-disc pl-4 space-y-2 font-medium">
+                                <li><strong>접속 계정 변경:</strong> 공용 관리자 아이디가 <span className="bg-cyan-100 text-cyan-800 px-1.5 py-0.5 rounded font-bold">rcsd</span> 로 변경되었습니다.</li>
+                                <li><strong>회계연도 기준 적용:</strong> 모든 직원의 연차가 입사일 무관하게 <span className="text-red-500 font-bold">매년 1월 1일 ~ 12월 31일</span> 기준으로 부여 및 소멸되도록 자동 산정 방식이 변경되었습니다.</li>
+                                <li><strong>맞춤형 UI/UX:</strong> 사단법인 장애인사회연구소 전용 로고 및 테마 색상(Cyan)이 시스템 전체에 일괄 적용되었습니다.</li>
+                                <li><strong>연차 촉진 자동화:</strong> 장사연 규정에 맞춘 촉진 알림(10월, 7월, 11월) 및 싸인오케이 양식이 탑재되었습니다.</li>
+                            </ul>
+                        </div>
+                        <button onClick={onClose} className="w-full bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-cyan-700 transition shadow-lg shadow-cyan-200">확인했습니다 (닫기)</button>
                     </div>
                 </div>
             );
@@ -701,7 +724,6 @@
                                 const leaveInfo = calculateAnnualLeave(joinDate);
                                 const phoneStr = String(phoneRaw || '').trim();
                                 const uniqueKey = `${name}_${phoneStr.slice(-4)}`;
-                                // [수정됨] 장애인사회연구소 이메일 생성
                                 const email = `${uniqueKey}@jangaein.com`;
                                 const docRef = db.collection('users').doc(email);
                                 batch.set(docRef, {
@@ -823,7 +845,6 @@
                                 const birthRaw = row[1]; const phoneRaw = row[2]; const joinRaw = row[3]; const workRaw = row[4]; const resignRaw = row[5];
                                 const joinDate = safeDate(joinRaw); const birthDate = safeDate(birthRaw); const resignDate = safeDate(resignRaw);
                                 const leaveInfo = calculateAnnualLeave(joinDate);
-                                // [수정됨] 장애인사회연구소 이메일 생성
                                 const email = `${name}_${String(phoneRaw||'').trim().slice(-4)}@jangaein.com`;
                                 const docRef = db.collection('users').doc(email);
                                 batch.set(docRef, {
@@ -913,6 +934,9 @@
             const [editingLeaveData, setEditingLeaveData] = useState(null);
             const [viewingStaffDetail, setViewingStaffDetail] = useState(null);
             
+            // [추가됨] 업데이트 안내 모달 상태 관리 (로그인 직후 기본 활성화)
+            const [showUpdateNotice, setShowUpdateNotice] = useState(true);
+            
             useEffect(() => {
                 if (user && user.role === 'admin') {
                     const unsub = db.collection('users').onSnapshot((snapshot) => {
@@ -994,7 +1018,6 @@
                 <div className="flex h-screen bg-[#F1F5F9] text-slate-800 font-sans overflow-hidden">
                     <ErrorBoundary>
                         <aside className="w-64 bg-[#1E293B] text-white flex flex-col z-10 shadow-xl">
-                            {/* [수정됨] 상단 로고 삽입 및 스타일 변경 */}
                             <div className="p-4 border-b border-slate-700/50">
                                 <div className="bg-white rounded-xl py-3 px-2 mb-2">
                                     <img src="./logo.jpg" alt="장애인사회연구소" className="h-10 mx-auto object-contain" />
@@ -1011,10 +1034,10 @@
                             </nav>
                             <div className="p-4 bg-[#0F172A]">
                                 <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-white text-xs font-bold py-2"><Icons.LogOut /> 로그아웃</button>
-                                <p className="text-[10px] text-slate-500 text-center mt-4">Ver 9.2 (Fiscal Year)<br/>© 2026 Jangaein</p>
+                                <p className="text-[10px] text-slate-500 text-center mt-4">Ver 9.3 (Fiscal Year)<br/>© 2026 Jangaein</p>
                             </div>
                         </aside>
-                        <main className="flex-1 overflow-y-auto p-8">
+                        <main className="flex-1 overflow-y-auto p-8 relative">
                             <header className="flex justify-between items-center mb-8"><h2 className="text-2xl font-bold text-slate-800">관리자 시스템</h2><div className="text-sm font-bold text-slate-500">{new Date().toLocaleDateString()}</div></header>
                             
                             {/* 대시보드 */}
@@ -1080,6 +1103,9 @@
                         </main>
                         {showLeaveModal && <LeaveActionModal staffList={activeStaffList} onClose={closeLeaveModal} initialData={editingLeaveData} />}
                         {viewingStaffDetail && <StaffDetailModal staff={viewingStaffDetail} onClose={() => setViewingStaffDetail(null)} />}
+                        
+                        {/* [추가됨] 시스템 업데이트 모달 노출 */}
+                        {showUpdateNotice && <UpdateNoticeModal onClose={() => setShowUpdateNotice(false)} />}
                     </ErrorBoundary>
                 </div>
             );
